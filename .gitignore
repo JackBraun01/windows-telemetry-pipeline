@@ -1,0 +1,7 @@
+*.csv
+*.xlsx
+Backups/
+Libre Hardware Monitor/
+VirtualBox files/
+Windows ISO files/
+disk_check.txt
