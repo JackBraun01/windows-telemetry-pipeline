@@ -19,7 +19,7 @@ An automated background system telemetry pipeline built for personal Windows end
   - **Self-locating:** Resolves its own log and backup paths dynamically via `$PSScriptRoot`, so the script works correctly regardless of which folder it's placed in — no hardcoded paths to keep in sync.
   - **Hardware Metrics:** Queries WMI / CIM APIs (RAM usage, C-Drive storage, GPU model).
   - **Power Metrics:** Queries `System.Windows.Forms` (AC status, battery percentage).
-  - **Process Classification:** Evaluates running tasks into 3 distinct tiers via `.NET HashSet` lookups.
+  - **Process Classification:** Evaluates running tasks into 4 distinct tiers via `.NET HashSet` lookups.
 - **Data Destination (`SystemHealthLog.csv`):** Appends structured UTF-8 diagnostic records via non-locking stream writer, written to the same folder as the script itself.
 - **Analytics Layer (`Microsoft Excel`):** Power Query engine ingests and auto-refreshes data model every 5 minutes.
 
@@ -41,7 +41,7 @@ To inspect the underlying PowerShell implementation, resource collections, and n
 
 - **Resource & Hardware Telemetry:** Collects available memory (GB), total RAM (GB), C-drive free space (GB), and active Display Adapter GPU model via CIM/WMI.
 - **Power Telemetry & Desktop Edge Cases:** Queries `System.Windows.Forms.SystemInformation`. For desktop PCs lacking a physical battery, metrics gracefully record as `N/A / AC Powered` without throwing script exceptions.
-- **3-Tiered Process Categorization:** Evaluates running processes against `.NET HashSet[string]` lookups for fast memory management:
+- **4-Tiered Process Categorization:** Evaluates running processes against `.NET HashSet[string]` lookups for fast memory management:
   - **Tier 0 (Core System):** Session 0 / essential OS processes (`svchost`, `csrss`, `explorer`, `dwm`).
   - **Tier 1 (User Applications):** Active foreground user software (`chrome`, `powershell`, `mmc`).
   - **Tier 2 (Background Services):** Helper tools and unclassified services.
