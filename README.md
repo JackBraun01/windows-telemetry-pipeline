@@ -89,10 +89,11 @@ Timestamp,Overall_Security_State,Tier0_Essential_Count,Tier0_Essential_Apps,Tier
    CreateObject("Wscript.Shell").Run "powershell.exe -ExecutionPolicy Bypass -File ""C:\IT_Projects\Windows telemetry project\Run-SystemUtility.ps1""", 0, False
    ```
 
-3. **Set your execution policy for the session** (only needed the first time you test manually — not needed for the automated Task Scheduler run, since it already runs with `-ExecutionPolicy Bypass` built in):
+3. **Set your execution policy for the session** before testing manually — Windows blocks unsigned scripts by default, and you WILL see an error without this step (see Troubleshooting below):
    ```powershell
    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
    ```
+   This is only needed for manual testing — the automated Task Scheduler run doesn't need it, since `Run-Hidden.vbs` already calls PowerShell with `-ExecutionPolicy Bypass` built in.
 
 4. **Register the Scheduled Task**, pointing at wherever `Run-Hidden.vbs` actually lives:
    ```powershell
@@ -117,9 +118,39 @@ Timestamp,Overall_Security_State,Tier0_Essential_Count,Tier0_Essential_Apps,Tier
 
 ---
 
+## Troubleshooting
+
+Real issues encountered setting this up, and their fixes:
+
+**"File ... cannot be loaded. The file ... is not digitally signed."**
+Windows blocks unsigned scripts by default. Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` in your PowerShell window before testing manually. This only applies to that one window — you'll need to run it again each time you open a fresh PowerShell session to test.
+
+**Windows Script Host error: "Can not find script file ... Run-Hidden.vbs"**
+Task Scheduler's action is pointing at the wrong path. Open the task's Properties → Actions tab → Edit, and check the **"Add arguments"** field specifically (not "Program/script," which should just say `wscript.exe`) — it needs the full, correctly quoted path to wherever `Run-Hidden.vbs` actually lives, e.g. `"C:\IT_Projects\Windows telemetry project\Run-Hidden.vbs"`.
+
+**Script says "logged successfully" but the CSV never shows new data**
+Check for a leftover duplicate Scheduled Task from an earlier setup attempt — having two tasks pointed at different script copies (one old, one current) causes exactly this kind of "it worked, but where did it go" confusion. Check Task Scheduler Library for duplicates and disable/delete the old one.
+
+**Two scheduled tasks both firing, causing intermittent random errors**
+If you registered the task more than once (e.g. once via PowerShell script, once via the Task Scheduler wizard), you may end up with two separate tasks both running every 5 minutes independently. Check Task Scheduler Library for duplicates and keep only one.
+
+**Excel shows old/stale data after adding a new CSV column**
+Power Query's `Source` step can lock in a fixed column count on first setup. If you add a column to the CSV later (e.g. customizing the Tier 3 logic), open Power Query Editor → click the `Source` step → check the formula bar for a `Columns=` parameter and update the number to match your new total column count.
+
+**Renamed test files (e.g. testing threat detection) won't run, or vanish immediately**
+This is very likely your own antivirus/EDR software correctly doing its job — renaming an executable to mimic a known suspicious tool is a real detection pattern, and legitimate security software will block or kill it. This is expected behavior, not a bug in this script.
+
+**`git push` rejected: "Updates were rejected because the remote contains work that you do not have locally"**
+Someone (including you, via GitHub's web editor) made a change directly on GitHub that your local copy doesn't have. Run `git pull origin main` first to merge those changes down, resolve any file conflicts, then push again.
+
+**A README (or any file) you upload to GitHub doesn't render / shows a placeholder**
+GitHub only auto-renders a file named *exactly* `README.md`. Windows often hides file extensions by default, so a rename can silently produce something like `README.md.md` without you noticing. Enable File Explorer → View → "File name extensions" to always see the true filename.
+
+---
+
 ## Known Limitations
 
-- **Data and log paths are now self-resolving** (via `$PSScriptRoot`), but `Run-Hidden.vbs` and the registered Scheduled Task still need to be manually pointed at wherever you place the project — Windows has to be told where to start looking before the script can locate itself. Moving the folder after setup requires updating those two references together.
+- **Data and log paths are self-resolving** (via `$PSScriptRoot`), but `Run-Hidden.vbs` and the registered Scheduled Task still need to be manually pointed at wherever you place the project — Windows has to be told where to start looking before the script can locate itself. Moving the folder after setup requires updating those two references together.
 - **Data files are not included in this repo:** `SystemHealthLog.csv` and any `.xlsx` dashboard file are excluded via `.gitignore`, since they contain live system data from the machine they were generated on. Cloning this repo gives you the pipeline itself, not pre-populated data — you'll start with an empty log.
 - **Excel Concurrent Locks:** Power Query maintains a brief read-only lock during data syncs. Streaming appends prevent write collisions, but manually editing the raw CSV during a refresh cycle may cause temporary file access contention.
 - **Virtual Machines:** On hypervisors without virtual GPU pass-through, the GPU query defaults to standard display driver strings (e.g., `Basic Display Adapter`).
