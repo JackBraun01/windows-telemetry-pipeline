@@ -13,6 +13,15 @@ An automated background system telemetry pipeline built for personal Windows end
 
 ## Architecture Overview
 
+```
+[Task Scheduler (5m)] ──▶ [Run-Hidden.vbs] ──▶ [Run-SystemUtility.ps1]
+                                                          │
+                                                          ▼
+      [Power Query / Excel] ◀── (read) ── [SystemHealthLog.csv]
+```
+
+The collector (left → right along the top) runs independently on its own 5-minute cycle. The dashboard (bottom left) only reflects new data when it's manually or automatically refreshed — it never writes back to the CSV, it only reads from it.
+
 - **Trigger:** Windows Task Scheduler invokes the collector every 5 minutes; execution behavior depends on the task's configured logon and power conditions (see Task Scheduler Behavior below).
 - **Wrapper (`Run-Hidden.vbs`):** Suppresses GUI console window creation to avoid desktop focus-stealing.
 - **Core Engine (`Run-SystemUtility.ps1`):**
