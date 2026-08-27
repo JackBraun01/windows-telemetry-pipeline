@@ -13,18 +13,18 @@ An automated background system telemetry pipeline built for personal Windows end
 
 ## Architecture Overview
 
-- **Trigger:** Windows Task Scheduler executes every 5 minutes (Non-Interactive).
+- **Trigger:** Windows Task Scheduler invokes the collector every 5 minutes; execution behavior depends on the task's configured logon and power conditions (see Task Scheduler Behavior below).
 - **Wrapper (`Run-Hidden.vbs`):** Suppresses GUI console window creation to avoid desktop focus-stealing.
 - **Core Engine (`Run-SystemUtility.ps1`):**
   - **Self-locating:** Resolves its own log and backup paths dynamically via `$PSScriptRoot`, so the script works correctly regardless of which folder it's placed in — no hardcoded paths to keep in sync.
   - **Hardware Metrics:** Queries WMI / CIM APIs (RAM usage, C-Drive storage, GPU model).
-  - **Power Metrics:** Queries `System.Windows.Forms` (AC status, battery percentage).
+  - **Power Metrics:** Uses `System.Windows.Forms.SystemInformation` to query AC power status and battery information.
   - **Process Classification:** Evaluates running tasks into 4 distinct tiers via `.NET HashSet` lookups.
-- **Data Destination (`SystemHealthLog.csv`):** Appends structured UTF-8 diagnostic records via non-locking stream writer, written to the same folder as the script itself.
+- **Data Destination (`SystemHealthLog.csv`):** Appends structured UTF-8 diagnostic records using compatible file-sharing settings, written to the same folder as the script itself.
 - **Analytics Layer (`Microsoft Excel`):** Power Query engine ingests and auto-refreshes data model every 5 minutes.
 
 ### Script Inspection & Code Review
-To inspect the underlying PowerShell implementation, resource collections, and non-locking file stream logic, view the core script file directly:
+To inspect the underlying PowerShell implementation, resource collections, and file-sharing behavior, view the core script file directly:
 [`Run-SystemUtility.ps1`](./Run-SystemUtility.ps1)
 
 ---
@@ -57,7 +57,7 @@ The engine evaluates active running processes against a dedicated `.NET HashSet[
 
 > **Important:** Tier 3 is a heuristic indicator system, not an antivirus or EDR solution. A match means a process warrants investigation — it does not establish that the process is malicious. Legitimate software can share names or run from these paths, and genuinely malicious software can easily avoid both signals entirely. This tier is a lightweight, personal triage aid, not a security control.
 
-- **File-Lock Resilience & Error Handling:** Appends records using non-locking UTF-8 file streams so background writes succeed even while Excel or an external viewer has `SystemHealthLog.csv` open for reading. Core hardware queries (RAM, disk) are wrapped in error handling so a single failed query doesn't crash the scheduled run.
+- **File-Lock Resilience & Error Handling:** Opens the CSV with compatible file-sharing settings so the collector can generally append data while Excel or another application has the file open for reading. Core hardware queries (RAM, disk) are wrapped in error handling so a single failed query doesn't crash the scheduled run.
 
 ---
 
