@@ -16,10 +16,11 @@ An automated background system telemetry pipeline built for personal Windows end
 - **Trigger:** Windows Task Scheduler executes every 5 minutes (Non-Interactive).
 - **Wrapper (`Run-Hidden.vbs`):** Suppresses GUI console window creation to avoid desktop focus-stealing.
 - **Core Engine (`Run-SystemUtility.ps1`):**
+  - **Self-locating:** Resolves its own log and backup paths dynamically via `$PSScriptRoot`, so the script works correctly regardless of which folder it's placed in — no hardcoded paths to keep in sync.
   - **Hardware Metrics:** Queries WMI / CIM APIs (RAM usage, C-Drive storage, GPU model).
   - **Power Metrics:** Queries `System.Windows.Forms` (AC status, battery percentage).
   - **Process Classification:** Evaluates running tasks into 3 distinct tiers via `.NET HashSet` lookups.
-- **Data Destination (`SystemHealthLog.csv`):** Appends structured UTF-8 diagnostic records via non-locking stream writer.
+- **Data Destination (`SystemHealthLog.csv`):** Appends structured UTF-8 diagnostic records via non-locking stream writer, written to the same folder as the script itself.
 - **Analytics Layer (`Microsoft Excel`):** Power Query engine ingests and auto-refreshes data model every 5 minutes.
 
 ### Script Inspection & Code Review
@@ -75,38 +76,25 @@ Timestamp,Overall_Security_State,Tier0_Essential_Count,Tier0_Essential_Apps,Tier
 - **Permissions:** Standard User execution (Admin rights are not required for basic WMI/CIM system queries)
 - **Visualization:** Microsoft Excel 2016+ with Power Query enabled
 
-### ⚠️ Before you start: pick your install folder
-
-This project uses a **fixed absolute path** internally rather than dynamically detecting its own location. Wherever you decide to put this project, **the same path must be updated in three places** — the script, the VBScript wrapper, and your Scheduled Task — or the pipeline will silently write data to the wrong place. This repo defaults to:
-
-```
-C:\IT_Projects\Windows telemetry project\
-```
-
-If you install it anywhere else, update all three locations below to match.
-
 ### Installation Steps
 
-1. **Clone Repository:**
+1. **Clone the repository into any folder you like** — the script no longer requires a specific path:
    ```cmd
    git clone https://github.com/JackBraun01/windows-telemetry-pipeline.git "C:\IT_Projects\Windows telemetry project"
    ```
+   `Run-SystemUtility.ps1` automatically detects its own folder and writes `SystemHealthLog.csv` and `Backups\` right next to itself — no editing required inside the script itself.
 
-2. **Update the script's own paths (if you changed the install folder):**
-   Open `Run-SystemUtility.ps1` and confirm lines 2–3 match your chosen folder:
-   ```powershell
-   $LogFile      = "C:\IT_Projects\Windows telemetry project\SystemHealthLog.csv"
-   $BackupDir    = "C:\IT_Projects\Windows telemetry project\Backups"
-   ```
-
-3. **Update `Run-Hidden.vbs` (if you changed the install folder):**
-   Open `Run-Hidden.vbs` and confirm the path matches:
+2. **Point `Run-Hidden.vbs` at the script's actual location.** This is the one path that still needs to be set manually, since Windows needs to be told where to look *before* the script can run and locate itself. Open `Run-Hidden.vbs` and confirm the path matches wherever you cloned the repo:
    ```vbscript
    CreateObject("Wscript.Shell").Run "powershell.exe -ExecutionPolicy Bypass -File ""C:\IT_Projects\Windows telemetry project\Run-SystemUtility.ps1""", 0, False
    ```
 
-4. **Register Scheduled Task:**
-   Run the following command in PowerShell to establish the 5-minute background trigger:
+3. **Set your execution policy for the session** (only needed the first time you test manually — not needed for the automated Task Scheduler run, since it already runs with `-ExecutionPolicy Bypass` built in):
+   ```powershell
+   Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+   ```
+
+4. **Register the Scheduled Task**, pointing at wherever `Run-Hidden.vbs` actually lives:
    ```powershell
    $action = New-ScheduledTaskAction -Execute "wscript.exe" -Argument "`"C:\IT_Projects\Windows telemetry project\Run-Hidden.vbs`""
    $trigger = New-ScheduledTaskTrigger -At (Get-Date) -Once -RepetitionInterval (New-TimeSpan -Minutes 5)
@@ -131,7 +119,7 @@ If you install it anywhere else, update all three locations below to match.
 
 ## Known Limitations
 
-- **Fixed paths, not portable:** The script and VBScript wrapper use hardcoded absolute paths rather than resolving their own location dynamically. Moving the project folder after setup requires manually updating the paths in `Run-SystemUtility.ps1`, `Run-Hidden.vbs`, and the registered Scheduled Task together — an inconsistency between any of these three will cause the pipeline to silently write to (or read from) the wrong location.
+- **Data and log paths are now self-resolving** (via `$PSScriptRoot`), but `Run-Hidden.vbs` and the registered Scheduled Task still need to be manually pointed at wherever you place the project — Windows has to be told where to start looking before the script can locate itself. Moving the folder after setup requires updating those two references together.
 - **Data files are not included in this repo:** `SystemHealthLog.csv` and any `.xlsx` dashboard file are excluded via `.gitignore`, since they contain live system data from the machine they were generated on. Cloning this repo gives you the pipeline itself, not pre-populated data — you'll start with an empty log.
 - **Excel Concurrent Locks:** Power Query maintains a brief read-only lock during data syncs. Streaming appends prevent write collisions, but manually editing the raw CSV during a refresh cycle may cause temporary file access contention.
 - **Virtual Machines:** On hypervisors without virtual GPU pass-through, the GPU query defaults to standard display driver strings (e.g., `Basic Display Adapter`).

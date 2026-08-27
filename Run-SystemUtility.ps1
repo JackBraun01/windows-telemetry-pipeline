@@ -1,6 +1,6 @@
 # --- 1. Paths & Setup ---
-$LogFile      = "C:\IT_Projects\Windows telemetry project\SystemHealthLog.csv"
-$BackupDir    = "C:\IT_Projects\Windows telemetry project\Backups"
+$LogFile      = Join-Path $PSScriptRoot "SystemHealthLog.csv"
+$BackupDir    = Join-Path $PSScriptRoot "Backups"
 $Timestamp    = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
 
 if (-not (Test-Path $BackupDir)) {
